@@ -2,8 +2,13 @@ name: thaiwater-line
 on:
   schedule:
     - cron: "0 */2 * * *"   # every 2 hours, UTC
-  workflow_dispatch:          # manual "Run workflow" button
-
+    workflow_dispatch:
+    inputs:
+      force_wl:
+        description: "Test: always send /wl pages"
+        type: boolean
+        default: false
+        
 permissions:
   contents: write
 
@@ -12,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      FORCE_WL: ${{ inputs.force_wl && '1' || '0' }}
       LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
       LINE_TO: ${{ secrets.LINE_TO }}
     steps:
