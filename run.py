@@ -8,11 +8,31 @@ REPO = os.environ["GITHUB_REPOSITORY"]
 STAMP = time.strftime("%Y%m%d-%H%M")
 OUT = "shots"
 
+SEL = ("#dashboard > div > div.mt-4 > div > div:nth-child(2) > div:nth-child(2) "
+       "> div > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) "
+       "> td:nth-child(3) > div")
+
+def to_int(s):
+    m = re.search(r"\d[\d,]*", s or "")
+    return int(m.group().replace(",", "")) if m else 0
+
 def overflow_count(page) -> int:
-    # Adjust after inspecting the real page (see note below)
-    text = page.inner_text("body")
-    m = re.search(r"น้ำล้นตลิ่ง\D{0,40}?(\d+)\s*สถานี", text, re.S)
-    return int(m.group(1)) if m else 0
+    # 1) Find the table row containing "น้ำล้นตลิ่ง" and read its 3rd cell
+    try:
+        page.wait_for_selector("table tbody tr", timeout=20000)
+        for row in page.query_selector_all("table tbody tr"):
+            if "น้ำล้นตลิ่ง" in row.inner_text():
+                cells = row.query_selector_all("td")
+                if len(cells) >= 3:
+                    return to_int(cells[2].inner_text())
+    except Exception:
+        pass
+    # 2) Fallback: the exact selector you sent
+    try:
+        page.wait_for_selector(SEL, timeout=20000)
+        return to_int(page.inner_text(SEL))
+    except Exception:
+        return 0
 
 def capture():
     os.makedirs(OUT, exist_ok=True)
