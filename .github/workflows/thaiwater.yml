@@ -2,7 +2,7 @@ name: thaiwater-line
 on:
   schedule:
     - cron: "0 */2 * * *"   # every 2 hours, UTC
-    workflow_dispatch:
+  workflow_dispatch:          # manual "Run workflow" button
     inputs:
       force_wl:
         description: "Test: always send /wl pages"
