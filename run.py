@@ -7,6 +7,7 @@ LINE_TO = os.environ["LINE_TO"]
 REPO = os.environ["GITHUB_REPOSITORY"]
 STAMP = time.strftime("%Y%m%d-%H%M")
 OUT = "shots"
+FORCE_WL = os.environ.get("FORCE_WL") == "1"
 
 SEL = ("#dashboard > div > div.mt-4 > div > div:nth-child(2) > div:nth-child(2) "
        "> div > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) "
@@ -48,7 +49,7 @@ def capture():
             n = f"{STAMP}_{prov}_dashboard.png"
             page.screenshot(path=f"{OUT}/{n}", full_page=True)
             names.append(n)
-            if overflow_count(page) > 0:
+            if FORCE_WL or overflow_count(page) > 0:
                 page.goto(f"{base}/wl", wait_until="networkidle", timeout=60000)
                 page.wait_for_timeout(3000)
                 n = f"{STAMP}_{prov}_wl.png"
