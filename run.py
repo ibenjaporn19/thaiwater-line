@@ -66,29 +66,57 @@ def set_rows_25(page):
     except Exception as e:
         print("set_rows_25 failed:", e)
 
+def go_next_page(page) -> bool:
+    """Click the next-page arrow of the table. Returns True if it worked."""
+    for sel in ["button[aria-label='Next page']",
+                "button.mat-mdc-paginator-navigation-next",
+                "button.mat-paginator-navigation-next"]:
+        try:
+            btn = page.locator(sel).first
+            btn.click(timeout=5000)
+            page.wait_for_timeout(3000)  # wait for the table to reload
+            return True
+        except Exception:
+            continue
+    print("go_next_page failed")
+    return False
+
+def shoot(page, names, filename):
+    page.evaluate("window.scrollTo(0, 0)")  # fixes header/sidebar position
+    page.wait_for_timeout(800)
+    page.screenshot(path=f"{OUT}/{filename}", full_page=True)
+    names.append(filename)
+
 def capture():
     os.makedirs(OUT, exist_ok=True)
     names = []
+    force = os.environ.get("FORCE_WL") == "1"
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1600, "height": 1000},
                                 locale="th-TH", timezone_id="Asia/Bangkok")
         for prov in PROVINCES:
             base = f"https://{prov}.thaiwater.net"
+
+            # dashboard
             page.goto(f"{base}/dashboard", wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(3000)
             hide_cookie(page)
-            n = f"{STAMP}_{prov}_dashboard.png"
-            page.screenshot(path=f"{OUT}/{n}", full_page=True)
-            names.append(n)
-            if FORCE_WL or overflow_count(page) > 0:
+            shoot(page, names, f"{STAMP}_{prov}_dashboard.png")
+
+            # water level pages, only if overflow count > 0
+            if force or overflow_count(page) > 0:
                 page.goto(f"{base}/wl", wait_until="networkidle", timeout=60000)
-                page.wait_for_timeout(3000) 
+                page.wait_for_timeout(3000)
                 hide_cookie(page)
                 set_rows_25(page)
-                n = f"{STAMP}_{prov}_wl.png"
-                page.screenshot(path=f"{OUT}/{n}", full_page=True)
-                names.append(n)
+                shoot(page, names, f"{STAMP}_{prov}_wl.png")
+
+                # Surat Thani: extra page (stations 26-34)
+                if prov == "suratthani":
+                    if go_next_page(page):
+                        hide_cookie(page)
+                        shoot(page, names, f"{STAMP}_{prov}_wl2.png")
         browser.close()
     json.dump(names, open(f"{OUT}/manifest.json", "w"))
 
