@@ -67,18 +67,23 @@ def set_rows_25(page):
         print("set_rows_25 failed:", e)
 
 def go_next_page(page) -> bool:
-    """Click the next-page arrow of the table. Returns True if it worked."""
-    for sel in ["button[aria-label='Next page']",
-                "button.mat-mdc-paginator-navigation-next",
-                "button.mat-paginator-navigation-next"]:
+    """Click the next-page arrow in the table footer and confirm it moved to page 2."""
+    candidates = [
+        "table tfoot button:nth-child(3)",             # 3rd button = next
+        "table tfoot button[aria-label='Next Page']",  # Material-UI default label
+        "table tfoot button[title='Next Page']",
+    ]
+    for sel in candidates:
         try:
             btn = page.locator(sel).first
+            btn.scroll_into_view_if_needed(timeout=5000)
             btn.click(timeout=5000)
-            page.wait_for_timeout(3000)  # wait for the table to reload
+            # verify: the footer should now say "26-34", not "1-25"
+            page.get_by_text(re.compile(r"26\s*-\s*\d+\s*of")).wait_for(timeout=10000)
+            page.wait_for_timeout(1500)
             return True
-        except Exception:
-            continue
-    print("go_next_page failed")
+        except Exception as e:
+            print(f"go_next_page: {sel} failed: {e}")
     return False
 
 def shoot(page, names, filename):
