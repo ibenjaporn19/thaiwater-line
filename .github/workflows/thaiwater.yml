@@ -1,7 +1,7 @@
 name: thaiwater-line
 on:
-  schedule:
-    - cron: "23 */2 * * *"   # every 2 hours, UTC
+  # schedule:
+  # - cron: "23 */2 * * *"   # every 2 hours, UTC
   workflow_dispatch:          # manual "Run workflow" button
     inputs:
       force_wl:
