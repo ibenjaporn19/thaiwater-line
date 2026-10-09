@@ -60,13 +60,13 @@ def capture():
         for prov in PROVINCES:
             base = f"https://{prov}.thaiwater.net"
             page.goto(f"{base}/dashboard", wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(3000) hide_cookie(page)
             n = f"{STAMP}_{prov}_dashboard.png"
             page.screenshot(path=f"{OUT}/{n}", full_page=True)
             names.append(n)
             if FORCE_WL or overflow_count(page) > 0:
                 page.goto(f"{base}/wl", wait_until="networkidle", timeout=60000)
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(3000) hide_cookie(page)
                 n = f"{STAMP}_{prov}_wl.png"
                 page.screenshot(path=f"{OUT}/{n}", full_page=True)
                 names.append(n)
