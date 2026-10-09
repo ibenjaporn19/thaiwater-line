@@ -35,6 +35,21 @@ def overflow_count(page) -> int:
     except Exception:
         return 0
 
+def hide_cookie(page):
+    # Try clicking "ยอมรับ" first
+    try:
+        page.get_by_text("ยอมรับ", exact=True).first.click(timeout=3000)
+    except Exception:
+        pass
+    # Then remove the banner from the page if it is still there
+    page.evaluate("""() => {
+      document.querySelectorAll('body *').forEach(el => {
+        if (getComputedStyle(el).position === 'fixed' &&
+            (el.innerText || '').includes('นโยบายและคำประกาศ')) el.remove();
+      });
+    }""")
+    page.wait_for_timeout(500)
+
 def capture():
     os.makedirs(OUT, exist_ok=True)
     names = []
