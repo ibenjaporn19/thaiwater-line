@@ -50,6 +50,22 @@ def hide_cookie(page):
     }""")
     page.wait_for_timeout(500)
 
+def set_rows_25(page):
+    try:
+        page.get_by_text("แสดงผลหน้าละ").wait_for(timeout=20000)
+        # click the dropdown that shows "10" next to the label
+        page.locator("xpath=//*[contains(text(),'แสดงผลหน้าละ')]"
+                     "/following::*[normalize-space(text())='10'][1]").click(timeout=5000)
+        page.wait_for_timeout(500)
+        # choose "25" from the opened list
+        try:
+            page.get_by_role("option", name="25", exact=True).click(timeout=3000)
+        except Exception:
+            page.locator("[role=listbox] >> text=25").first.click(timeout=3000)
+        page.wait_for_timeout(3000)   # wait for the table to reload
+    except Exception as e:
+        print("set_rows_25 failed:", e)
+
 def capture():
     os.makedirs(OUT, exist_ok=True)
     names = []
@@ -60,13 +76,16 @@ def capture():
         for prov in PROVINCES:
             base = f"https://{prov}.thaiwater.net"
             page.goto(f"{base}/dashboard", wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(3000) hide_cookie(page)
+            page.wait_for_timeout(3000)
+            hide_cookie(page)
             n = f"{STAMP}_{prov}_dashboard.png"
             page.screenshot(path=f"{OUT}/{n}", full_page=True)
             names.append(n)
             if FORCE_WL or overflow_count(page) > 0:
                 page.goto(f"{base}/wl", wait_until="networkidle", timeout=60000)
-                page.wait_for_timeout(3000) hide_cookie(page)
+                page.wait_for_timeout(3000) 
+                hide_cookie(page)
+                set_rows_25(page)
                 n = f"{STAMP}_{prov}_wl.png"
                 page.screenshot(path=f"{OUT}/{n}", full_page=True)
                 names.append(n)
