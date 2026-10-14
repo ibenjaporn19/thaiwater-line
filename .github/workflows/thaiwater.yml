@@ -32,6 +32,7 @@ jobs:
         run: python run.py capture
       - name: Publish images branch
         run: |
+          test -d shots || { echo "shots folder missing: capture did not run"; exit 1; }
           cd shots
           git init -b images
           git config user.name "github-actions"
