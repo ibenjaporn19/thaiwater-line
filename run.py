@@ -92,9 +92,42 @@ def shoot(page, names, filename):
     page.screenshot(path=f"{OUT}/{filename}", full_page=True)
     names.append(filename)
 
+def open_page(page, url, tries=2):
+    for i in range(tries):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass  # some pages never go idle, that's OK
+            page.wait_for_timeout(3000)
+            return True
+        except Exception as e:
+            print(f"open_page failed ({i+1}/{tries}): {url} -> {e}")
+            page.wait_for_timeout(5000)
+    return False
+
+def push_text(text):
+    r = requests.post("https://api.line.me/v2/bot/message/push",
+                      headers={"Authorization": f"Bearer {LINE_TOKEN}"},
+                      json={"to": LINE_TO,
+                            "messages": [{"type": "text", "text": text}]})
+    r.raise_for_status()
+
+def notify_failures(failed):
+    if not failed:
+        return
+    lines = [f"⚠️ thaiwater: ดึงข้อมูลไม่สำเร็จ ({STAMP})"]
+    lines += [f"- {prov}: {reason}" for prov, reason in failed]
+    try:
+        push_text("\n".join(lines))
+    except Exception as e:
+        print("notify_failures failed:", e)
+
 def capture():
     os.makedirs(OUT, exist_ok=True)
     names = []
+    failed = []   # list of (province, reason)
     force = os.environ.get("FORCE_WL") == "1"
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -102,31 +135,42 @@ def capture():
                                 locale="th-TH", timezone_id="Asia/Bangkok")
         for prov in PROVINCES:
             base = f"https://{prov}.thaiwater.net"
-
-            # dashboard
-            page.goto(f"{base}/dashboard", wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(3000)
-            hide_cookie(page)
-            shoot(page, names, f"{STAMP}_{prov}_dashboard.png")
-
-            # water level pages, only if overflow count > 0
-            if force or overflow_count(page) > 0:
-                page.goto(f"{base}/wl", wait_until="networkidle", timeout=60000)
-                page.wait_for_timeout(3000)
+            try:
+                # dashboard
+                if not open_page(page, f"{base}/dashboard"):
+                    print(f"SKIP {prov}: dashboard not loaded")
+                    failed.append((prov, "dashboard เปิดไม่ได้"))
+                    continue
                 hide_cookie(page)
-                set_rows_25(page)
-                shoot(page, names, f"{STAMP}_{prov}_wl.png")
+                shoot(page, names, f"{STAMP}_{prov}_dashboard.png")
 
-                # Surat Thani: extra page (stations 26-34)
-                if prov == "suratthani":
-                    if go_next_page(page):
-                        hide_cookie(page)
-                        shoot(page, names, f"{STAMP}_{prov}_wl2.png")
+                # water level pages, only if overflow count > 0
+                if force or overflow_count(page) > 0:
+                    if not open_page(page, f"{base}/wl"):
+                        print(f"SKIP {prov}: wl not loaded")
+                        failed.append((prov, "หน้า /wl เปิดไม่ได้"))
+                        continue
+                    hide_cookie(page)
+                    set_rows_25(page)
+                    shoot(page, names, f"{STAMP}_{prov}_wl.png")
+
+                    if prov == "suratthani":
+                        if go_next_page(page):
+                            hide_cookie(page)
+                            shoot(page, names, f"{STAMP}_{prov}_wl2.png")
+                        else:
+                            failed.append((prov, "หน้า /wl ชุดที่ 2 (26-34) ไม่สำเร็จ"))
+            except Exception as e:
+                print(f"ERROR {prov}: {e}")
+                failed.append((prov, "เกิดข้อผิดพลาด"))
+                continue
         browser.close()
     json.dump(names, open(f"{OUT}/manifest.json", "w"))
+    json.dump(failed, open(f"{OUT}/failed.json", "w"))
 
 def send():
     names = json.load(open(f"{OUT}/manifest.json"))
+    failed = json.load(open(f"{OUT}/failed.json"))
     urls = [f"https://raw.githubusercontent.com/{REPO}/images/{n}" for n in names]
     for i in range(0, len(urls), 5):  # max 5 messages per push
         msgs = [{"type": "image", "originalContentUrl": u, "previewImageUrl": u}
@@ -135,6 +179,4 @@ def send():
                           headers={"Authorization": f"Bearer {LINE_TOKEN}"},
                           json={"to": LINE_TO, "messages": msgs})
         r.raise_for_status()
-
-if __name__ == "__main__":
-    {"capture": capture, "send": send}[sys.argv[1]]()
+    notify_failures([tuple(x) for x in failed])
