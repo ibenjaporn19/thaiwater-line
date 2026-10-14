@@ -41,3 +41,11 @@ jobs:
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" images
       - name: Send to LINE
         run: python run.py send
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -s -X POST https://api.line.me/v2/bot/message/push \
+            -H "Authorization: Bearer $LINE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"$LINE_TO\",\"messages\":[{\"type\":\"text\",\"text\":\"⚠️ thaiwater workflow ล้มเหลว ดูที่ GitHub Actions\"}]}"
