@@ -181,5 +181,5 @@ def send():
         r.raise_for_status()
     notify_failures([tuple(x) for x in failed])
 
-   if __name__ == "__main__":
-       {"capture": capture, "send": send}[sys.argv[1]]()
+if __name__ == "__main__":
+    {"capture": capture, "send": send}[sys.argv[1]]()
