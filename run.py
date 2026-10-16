@@ -86,6 +86,13 @@ def go_next_page(page) -> bool:
             print(f"go_next_page: {sel} failed: {e}")
     return False
 
+from PIL import Image
+
+def make_preview(src, dst, width=400):
+    im = Image.open(src)
+    h = int(im.height * width / im.width)
+    im.resize((width, h)).convert("RGB").save(dst, "JPEG", quality=70)
+
 def shoot(page, names, filename):
     page.evaluate("window.scrollTo(0, 0)")  # fixes header/sidebar position
     page.wait_for_timeout(800)
