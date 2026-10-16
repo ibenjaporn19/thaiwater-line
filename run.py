@@ -94,10 +94,15 @@ def make_preview(src, dst, width=400):
     im.resize((width, h)).convert("RGB").save(dst, "JPEG", quality=70)
 
 def shoot(page, names, filename):
-    page.evaluate("window.scrollTo(0, 0)")  # fixes header/sidebar position
+    page.evaluate("window.scrollTo(0, 0)")
     page.wait_for_timeout(800)
-    page.screenshot(path=f"{OUT}/{filename}", full_page=True)
-    names.append(filename)
+    png = f"{OUT}/{filename}"
+    page.screenshot(path=png, full_page=True)
+    base = filename[:-4]
+    Image.open(png).convert("RGB").save(f"{OUT}/{base}.jpg", "JPEG", quality=80)
+    make_preview(png, f"{OUT}/{base}_prev.jpg")
+    os.remove(png)
+    names.append(base)
 
 def open_page(page, url, tries=2):
     for i in range(tries):
@@ -178,10 +183,11 @@ def capture():
 def send():
     names = json.load(open(f"{OUT}/manifest.json"))
     failed = json.load(open(f"{OUT}/failed.json"))
-    urls = [f"https://raw.githubusercontent.com/{REPO}/images/{n}" for n in names]
+    urls = [(f"https://raw.githubusercontent.com/{REPO}/images/{n}.jpg",
+         f"https://raw.githubusercontent.com/{REPO}/images/{n}_prev.jpg") for n in names]
     for i in range(0, len(urls), 5):  # max 5 messages per push
-        msgs = [{"type": "image", "originalContentUrl": u, "previewImageUrl": u}
-                for u in urls[i:i+5]]
+        msgs = [{"type": "image", "originalContentUrl": u, "previewImageUrl": p}
+                for u, p in urls[i:i+5]]
         r = requests.post("https://api.line.me/v2/bot/message/push",
                           headers={"Authorization": f"Bearer {LINE_TOKEN}"},
                           json={"to": LINE_TO, "messages": msgs})
