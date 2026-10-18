@@ -1,7 +1,8 @@
 import os, re, sys, json, time, requests
 from playwright.sync_api import sync_playwright
 
-PROVINCES = ["songkhla", "yala", "nakhonsithammarat", "suratthani", "chumphon"]
+PROVINCES = ["songkhla", "yala", "nakhonsithammarat", "suratthani", "chumphon",
+             "ranong", "phuket", "krabi", "phangnga"]
 LINE_TOKEN = os.environ["LINE_TOKEN"]
 LINE_TO = os.environ["LINE_TO"]
 REPO = os.environ["GITHUB_REPOSITORY"]
