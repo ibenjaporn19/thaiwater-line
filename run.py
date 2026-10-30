@@ -69,22 +69,32 @@ def set_rows_25(page):
     except Exception as e:
         print("set_rows_25 failed:", e)
 
+def footer_text(page):
+    try:
+        return page.get_by_text(re.compile(r"\d+\s*-\s*\d+\s*of\s*\d+")).first.inner_text()
+    except Exception:
+        return ""
+
 def go_next_page(page) -> bool:
-    """Click the next-page arrow in the table footer and confirm it moved to page 2."""
+    """Click next-page and confirm the footer range changed (e.g. 1-25 -> 26-34)."""
+    before = footer_text(page)
     candidates = [
-        "table tfoot button:nth-child(3)",             # 3rd button = next
-        "table tfoot button[aria-label='Next Page']",  # Material-UI default label
+        "table tfoot button:nth-child(3)",
+        "table tfoot button[aria-label='Next Page']",
         "table tfoot button[title='Next Page']",
     ]
     for sel in candidates:
         try:
             btn = page.locator(sel).first
+            if btn.is_disabled():
+                return False              # already on the last page
             btn.scroll_into_view_if_needed(timeout=5000)
             btn.click(timeout=5000)
-            # verify: the footer should now say "26-34", not "1-25"
-            page.get_by_text(re.compile(r"26\s*-\s*\d+\s*of")).wait_for(timeout=10000)
-            page.wait_for_timeout(1500)
-            return True
+            for _ in range(20):           # wait up to 10 s for the table to change
+                page.wait_for_timeout(500)
+                if footer_text(page) != before:
+                    page.wait_for_timeout(1500)
+                    return True
         except Exception as e:
             print(f"go_next_page: {sel} failed: {e}")
     return False
@@ -139,11 +149,21 @@ def notify_failures(failed):
     except Exception as e:
         print("notify_failures failed:", e)
 
+def trim_rows(page, keep):
+    """Hide table rows after the first `keep` rows (overflow stations come first)."""
+    page.evaluate("""(keep) => {
+      const rows = document.querySelectorAll('table:has(tfoot) tbody tr');
+      rows.forEach((r, i) => { r.style.display = i < keep ? '' : 'none'; });
+    }""", keep)
+    page.wait_for_timeout(500)
+
 def capture():
     os.makedirs(OUT, exist_ok=True)
     names = []
-    failed = []   # list of (province, reason)
+    failed = []
     force = os.environ.get("FORCE_WL") == "1"
+    PER_PAGE = 25
+    MAX_PAGES = 8
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1600, "height": 1000},
@@ -151,7 +171,6 @@ def capture():
         for prov in PROVINCES:
             base = f"https://{prov}.thaiwater.net"
             try:
-                # dashboard
                 if not open_page(page, f"{base}/dashboard"):
                     print(f"SKIP {prov}: dashboard not loaded")
                     failed.append((prov, "dashboard เปิดไม่ได้"))
@@ -159,22 +178,31 @@ def capture():
                 hide_cookie(page)
                 shoot(page, names, f"{STAMP}_{prov}_dashboard.png")
 
-                # water level pages, only if overflow count > 0
-                if force or overflow_count(page) > 0:
+                n_over = overflow_count(page)
+                print(f"{prov}: overflow stations = {n_over}")
+
+                if force or n_over > 0:
+                    # in test mode with 0 overflow, show a full first page
+                    n_show = n_over if n_over > 0 else PER_PAGE
+                    n_pages = min(-(-n_show // PER_PAGE), MAX_PAGES)  # ceil
+
                     if not open_page(page, f"{base}/wl"):
                         print(f"SKIP {prov}: wl not loaded")
                         failed.append((prov, "หน้า /wl เปิดไม่ได้"))
                         continue
                     hide_cookie(page)
                     set_rows_25(page)
-                    shoot(page, names, f"{STAMP}_{prov}_wl.png")
 
-                    if prov == "suratthani":
-                        if go_next_page(page):
+                    for pn in range(1, n_pages + 1):
+                        if pn > 1:
+                            if not go_next_page(page):
+                                failed.append((prov, f"หน้า /wl ชุดที่ {pn} ไม่สำเร็จ"))
+                                break
                             hide_cookie(page)
-                            shoot(page, names, f"{STAMP}_{prov}_wl2.png")
-                        else:
-                            failed.append((prov, "หน้า /wl ชุดที่ 2 (26-34) ไม่สำเร็จ"))
+                        keep = min(PER_PAGE, n_show - PER_PAGE * (pn - 1))
+                        trim_rows(page, keep)
+                        shoot(page, names, f"{STAMP}_{prov}_wl{pn}.png")
+                    print(f"{prov}: wl pages = {n_pages}")
             except Exception as e:
                 print(f"ERROR {prov}: {e}")
                 failed.append((prov, "เกิดข้อผิดพลาด"))
