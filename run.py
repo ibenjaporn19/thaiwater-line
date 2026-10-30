@@ -6,7 +6,9 @@ PROVINCES = ["songkhla", "yala", "nakhonsithammarat", "suratthani", "chumphon",
 LINE_TOKEN = os.environ["LINE_TOKEN"]
 LINE_TO = os.environ["LINE_TO"]
 REPO = os.environ["GITHUB_REPOSITORY"]
-STAMP = time.strftime("%Y%m%d-%H%M")
+from datetime import datetime, timezone, timedelta
+TH = timezone(timedelta(hours=7))
+STAMP = datetime.now(TH).strftime("%Y%m%d-%H%M")
 OUT = "shots"
 FORCE_WL = os.environ.get("FORCE_WL") == "1"
 
@@ -130,7 +132,7 @@ def push_text(text):
 def notify_failures(failed):
     if not failed:
         return
-    lines = [f"⚠️ thaiwater: ดึงข้อมูลไม่สำเร็จ ({STAMP})"]
+    lines = [f"⚠️ thaiwater: ดึงข้อมูลไม่สำเร็จ ({datetime.now(TH).strftime('%d/%m/%Y %H:%M')} น.)"]
     lines += [f"- {prov}: {reason}" for prov, reason in failed]
     try:
         push_text("\n".join(lines))
